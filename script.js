@@ -39,13 +39,12 @@ var mapViewport = {
 var maxNumberOfUserPlaces = 10;
 
 // The maximum amount of places to query distances at once from mapbox
-var maxNumberOfPlacesInDistanceQuery = 100;
+var maxNumberOfPlacesInDistanceQuery = 25;
 
 // Change 'walking' to cycling of driving if needed
 // NOTE: I had to ask the support to activate the distances api for my access token,
 //        as it is still in preview. You will have to do the same if you use your account.
-var distanceApiUrl = 'https://api.mapbox.com/distances/v1/mapbox/walking?access_token='
-                        + L.mapbox.accessToken;
+var distanceApiUrl = 'https://api.mapbox.com/directions-matrix/v1/mapbox/walking/';
 
 // Our GeoServer data source
 var dataSource =  './geoserver/spt-project/ows' +
@@ -234,7 +233,7 @@ function weightGeoJson(geoJson) {
 function complaintValuation(feature) {
   var complaintRating = 1 - feature.properties.complaint_rating;
 
-  // Custom weighting -> how important is personal distance in general?
+  // Custom weighting -> how important is this rating?
   var weighting = 0.25;
 
   return complaintRating * weighting || 0;
@@ -243,7 +242,7 @@ function complaintValuation(feature) {
 function restaurantValuation(feature) {
   var restaurantRating = feature.properties.restaurant_rating;
 
-  // Custom weighting -> how important is personal distance in general?
+  // Custom weighting -> how important is this rating?
   var weighting = 0.5;
 
   return  restaurantRating * restaurantImportance * weighting || 0;
@@ -258,7 +257,7 @@ function subwayValuation(feature) {
     subwayRating = (subwayRating * subwayRating * subwayRating) / 3;
   }
 
-  // Custom weighting -> how important is personal distance in general?
+  // Custom weighting -> how important is this rating?
   var weighting = 1.5;
 
   return subwayRating * subwayImportance * weighting || 0;
@@ -270,7 +269,7 @@ function playareaValuation(feature) {
 
   var playareaRating = (playgroundRating * 3 + soccerRating) / 4;
 
-  // Custom weighting -> how important is personal distance in general?
+  // Custom weighting -> how important is this rating?
   var weighting = 1;
 
   return playareaRating * playgroundImportance * weighting || 0;
@@ -279,7 +278,7 @@ function playareaValuation(feature) {
 function parkValuation(feature) {
   var parkRating = feature.properties.park_ratings;
 
-  // Custom weighting -> how important is personal distance in general?
+  // Custom weighting -> how important is this rating?
   var weighting = 2;
 
   if (parkRating > 0.2) {
@@ -299,7 +298,7 @@ function vibrantValuation(feature) {
 
   var vibrantRating = (restaurantRating * 2 + populationRating) / 3;
 
-  // Custom weighting -> how important is personal distance in general?
+  // Custom weighting -> how important is this rating?
   var weighting = 1;
 
   return vibrantRating * vibrantImportance * weighting || 0;
@@ -309,7 +308,7 @@ function rentalValuation(feature) {
   // Invert value -> lowest prices should give positive rating
   var rentalRating = 1 - feature.properties.rental_rating;
 
-  // Custom weighting -> how important is personal distance in general?
+  // Custom weighting -> how important is this rating?
   var weighting = 5;
 
   return rentalRating * rentalImportance * rentalImportance * weighting || 0;
@@ -318,7 +317,7 @@ function rentalValuation(feature) {
 function schoolValuation(feature) {
   var schoolRating = feature.properties.school_rating;
 
-  // Custom weighting -> how important is personal distance in general?
+  // Custom weighting -> how important is this rating?
   var weighting = 1;
 
   return schoolRating * schoolImportance * weighting || 0;
@@ -327,7 +326,7 @@ function schoolValuation(feature) {
 function parkingValuation(feature) {
   var parkingRating = feature.properties.parking_rating;
 
-  // Custom weighting -> how important is personal distance in general?
+  // Custom weighting -> how important is this rating?
   var weighting = 0.6;
 
   return parkingRating * parkingImportance * weighting|| 0;
@@ -336,7 +335,7 @@ function parkingValuation(feature) {
 function universityValuation(feature) {
   var universityRating = feature.properties.university_rating;
 
-  // Custom weighting -> how important is personal distance in general?
+  // Custom weighting -> how important is this rating?
   var weighting = 1;
 
   return  universityRating * universityImportance * weighting|| 0;
@@ -350,7 +349,7 @@ function centerDistanceValuation(feature) {
   // Inverse value -> 1 is best (closer is better)
   var rating = (1 - centerDistance);
 
-  // Custom weighting -> how important is personal distance in general?
+  // Custom weighting -> how important is this rating?
   var weighting = 1;
 
   return rating * centerImportance * weighting|| 0;
@@ -364,12 +363,11 @@ function personalDistanceValuation(feature) {
   // Inverse value -> 1 is best
   var rating = (1 - personalDistance);
 
-  // Custom weighting -> how important is personal distance in general?
+  // Custom weighting -> how important is this rating?
   var weighting = 2.5;
 
   return rating * personalDistanceImportance * weighting || 0;
 }
-// TODO: Add proper valuation functions for different feature aspects
 
 
 ////////////////////////////////////
@@ -830,27 +828,23 @@ function queryRouteDistance() {
   var promises = [];
 
   // Wee need to batch request the distances.
-  // Mapbox only allows 100 places per request.
+  // Mapbox only allows 25 places per request.
   var regionsPerRequest = (maxNumberOfPlacesInDistanceQuery - maxNumberOfUserPlaces);
   for (var i = 0; i < regionCenters.length; i += regionsPerRequest) {
 
     // We always request in the following format:
     // fixed number of region centers concated with all of the users places.
-    // This allows us to read all needed times out of the response.
-    var requestData = {
-      'coordinates': regionCenters.slice(i, i + regionsPerRequest).concat(selectedPlaces),
-    };
+    // This allows us to read all needed times out of the response
+    coordinates = regionCenters.slice(i, i + regionsPerRequest).concat(selectedPlaces);
+    coordinates = coordinates.map(val => val[0] + "," + val[1]).join(";");
 
     // Calculate all of the distances using mapbox
     var promise = new Promise(function(resolve, reject) {
       var innerI = i;
 
       $.ajax({
-        url: distanceApiUrl,
-        data: JSON.stringify(requestData),
-        contentType: 'application/json; charset=utf-8',
-        dataType: 'json',
-        type: 'POST',
+        url: distanceApiUrl + coordinates + "?access_token=" + L.mapbox.accessToken,
+        type: 'GET',
         async: true,
         success: function (data, status, xhr) {
           // The Result Data will contain an matrix with distances
@@ -1012,12 +1006,12 @@ function onEachFeature(feature, layer) {
 // Displays a marker with a number in it
 L.NumberedDivIcon = L.Icon.extend({
   options: {
-    iconUrl: 'http://www.charliecroom.com/marker_hole.png',
+    iconUrl: 'marker.png',
     number: '',
     shadowUrl: null,
-    iconSize: new L.Point(25, 41),
-    iconAnchor: new L.Point(13, 41),
-    popupAnchor: new L.Point(0, -33),
+    iconSize: new L.Point(64, 64),
+    iconAnchor: new L.Point(32, 64),
+    popupAnchor: new L.Point(0, 48),
     /*
      iconAnchor: (Point)
      popupAnchor: (Point)
