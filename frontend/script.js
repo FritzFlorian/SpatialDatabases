@@ -39,13 +39,12 @@ var mapViewport = {
 var maxNumberOfUserPlaces = 10;
 
 // The maximum amount of places to query distances at once from mapbox
-var maxNumberOfPlacesInDistanceQuery = 100;
+var maxNumberOfPlacesInDistanceQuery = 25;
 
 // Change 'walking' to cycling of driving if needed
 // NOTE: I had to ask the support to activate the distances api for my access token,
 //        as it is still in preview. You will have to do the same if you use your account.
-var distanceApiUrl = 'https://api.mapbox.com/distances/v1/mapbox/walking?access_token='
-                        + L.mapbox.accessToken;
+var distanceApiUrl = 'https://api.mapbox.com/directions-matrix/v1/mapbox/walking/';
 
 // Our GeoServer data source
 var dataSource =  './geoserver/spt-project/ows' +
@@ -56,7 +55,7 @@ var dataSource =  './geoserver/spt-project/ows' +
                   '&maxFeatures=500' +
                   '&outputFormat=application%2Fjson'; // Output GeoJson for interactive display
 // Uncomment for static data
-// dataSource = './areas.geojson';
+dataSource = './areas.geojson';
 
 ////////////////////////////////////
 // Main Program
@@ -829,27 +828,23 @@ function queryRouteDistance() {
   var promises = [];
 
   // Wee need to batch request the distances.
-  // Mapbox only allows 100 places per request.
+  // Mapbox only allows 25 places per request.
   var regionsPerRequest = (maxNumberOfPlacesInDistanceQuery - maxNumberOfUserPlaces);
   for (var i = 0; i < regionCenters.length; i += regionsPerRequest) {
 
     // We always request in the following format:
     // fixed number of region centers concated with all of the users places.
-    // This allows us to read all needed times out of the response.
-    var requestData = {
-      'coordinates': regionCenters.slice(i, i + regionsPerRequest).concat(selectedPlaces),
-    };
+    // This allows us to read all needed times out of the response
+    coordinates = regionCenters.slice(i, i + regionsPerRequest).concat(selectedPlaces);
+    coordinates = coordinates.map(val => val[0] + "," + val[1]).join(";");
 
     // Calculate all of the distances using mapbox
     var promise = new Promise(function(resolve, reject) {
       var innerI = i;
 
       $.ajax({
-        url: distanceApiUrl,
-        data: JSON.stringify(requestData),
-        contentType: 'application/json; charset=utf-8',
-        dataType: 'json',
-        type: 'POST',
+        url: distanceApiUrl + coordinates + "?access_token=" + L.mapbox.accessToken,
+        type: 'GET',
         async: true,
         success: function (data, status, xhr) {
           // The Result Data will contain an matrix with distances
@@ -1011,12 +1006,12 @@ function onEachFeature(feature, layer) {
 // Displays a marker with a number in it
 L.NumberedDivIcon = L.Icon.extend({
   options: {
-    iconUrl: 'http://www.charliecroom.com/marker_hole.png',
+    iconUrl: 'marker.png',
     number: '',
     shadowUrl: null,
-    iconSize: new L.Point(25, 41),
-    iconAnchor: new L.Point(13, 41),
-    popupAnchor: new L.Point(0, -33),
+    iconSize: new L.Point(64, 64),
+    iconAnchor: new L.Point(32, 64),
+    popupAnchor: new L.Point(0, 48),
     /*
      iconAnchor: (Point)
      popupAnchor: (Point)
