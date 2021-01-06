@@ -127,17 +127,19 @@ initRouteInput();
 
 // Initiating Map with correct viewport
 function initializeMap() {
-  return L.mapbox.map('map', 'mapbox.light', {
+  return L.map('map',{
     maxBounds: mapViewport.bounds,
     minZoom: mapViewport.minZoomLevel,
     maxZoom: mapViewport.maxZoomLevel,
-  }).setView(mapViewport.center, mapViewport.initialZoomLevel);
+  }).setView(mapViewport.center, mapViewport.initialZoomLevel)
+    .addLayer(L.mapbox.styleLayer('mapbox://styles/mapbox/light-v10'));
 };
 
 // Initiating map for places selection
 function initializeSelectionMap() {
-  return L.mapbox.map('selection-map', 'mapbox.light')
-            .setView(mapViewport.center, mapViewport.initialZoomLevel);
+  return L.mapbox.map('selection-map')
+            .setView(mapViewport.center, mapViewport.initialZoomLevel)
+            .addLayer(L.mapbox.styleLayer('mapbox://styles/mapbox/light-v10'));
 };
 
 // Returns the color of a region based on the given rating value
